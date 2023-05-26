@@ -35,6 +35,10 @@ private let propsThatRequireDeviceReconfiguration = ["fps",
 // MARK: - CameraView
 
 public final class CameraView: UIView {
+  
+  
+  var hasRecordedFirstBuffer = false
+  
   // pragma MARK: React Properties
 
   // pragma MARK: Exported Properties

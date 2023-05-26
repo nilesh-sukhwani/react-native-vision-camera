@@ -15,6 +15,7 @@ extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAud
    Starts a video + audio recording with a custom Asset Writer.
    */
   func startRecording(options: NSDictionary, callback jsCallbackFunc: @escaping RCTResponseSenderBlock) {
+    print("TIME - startRecording at \(CFAbsoluteTimeGetCurrent())")
     cameraQueue.async {
       ReactLogger.log(level: .info, message: "Starting Video recording...")
       let callback = Callback(jsCallbackFunc)
@@ -140,12 +141,15 @@ extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAud
 
       // start recording session with or without audio.
       do {
+        print("TIME - startAssetWriter at \(CFAbsoluteTimeGetCurrent())")
         try recordingSession.startAssetWriter()
       } catch let error as NSError {
         callback.reject(error: .capture(.createRecorderError(message: "RecordingSession failed to start asset writer.")), cause: error)
         return
       }
       self.isRecording = true
+      self.hasRecordedFirstBuffer = false
+      print("TIME - finished startRecording setup at \(CFAbsoluteTimeGetCurrent())")
     }
   }
 
@@ -199,6 +203,10 @@ extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAud
 
       switch captureOutput {
       case is AVCaptureVideoDataOutput:
+        if !hasRecordedFirstBuffer {
+          print("TIME - recording first buffer at \(CFAbsoluteTimeGetCurrent())")
+          hasRecordedFirstBuffer = true
+        }
         recordingSession.appendBuffer(sampleBuffer, type: .video, timestamp: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
       case is AVCaptureAudioDataOutput:
         let timestamp = CMSyncConvertTime(CMSampleBufferGetPresentationTimeStamp(sampleBuffer),
