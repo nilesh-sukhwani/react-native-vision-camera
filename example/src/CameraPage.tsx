@@ -134,11 +134,13 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   }, []);
   const onInitialized = useCallback(() => {
     console.log('Camera initialized!');
+    camera.current?.prepareRecordingPipeline();
     setIsCameraInitialized(true);
   }, []);
   const onMediaCaptured = useCallback(
     (media: PhotoFile | VideoFile, type: 'photo' | 'video') => {
       console.log(`Media captured! ${JSON.stringify(media)}`);
+      camera.current?.prepareRecordingPipeline();
       navigation.navigate('MediaPage', {
         path: media.path,
         type: type,
@@ -229,7 +231,6 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
                 photo={true}
                 video={true}
                 audio={hasMicrophonePermission}
-                frameProcessor={device.supportsParallelVideoProcessing ? frameProcessor : undefined}
                 orientation="portrait"
                 frameProcessorFps={1}
                 onFrameProcessorPerformanceSuggestionAvailable={onFrameProcessorSuggestionAvailable}

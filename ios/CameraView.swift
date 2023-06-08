@@ -95,6 +95,7 @@ public final class CameraView: UIView {
   internal var videoOutput: AVCaptureVideoDataOutput?
   internal var audioOutput: AVCaptureAudioDataOutput?
   // CameraView+RecordView (+ FrameProcessorDelegate.mm)
+  internal var isPrimedForRecording = false
   internal var isRecording = false
   internal var recordingSession: RecordingSession?
   @objc public var frameProcessorCallback: FrameProcessorCallback?

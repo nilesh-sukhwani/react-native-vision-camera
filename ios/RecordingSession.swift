@@ -28,7 +28,7 @@ class RecordingSession {
   private let assetWriter: AVAssetWriter
   private var audioWriter: AVAssetWriterInput?
   private var bufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
-  private let completionHandler: (RecordingSession, AVAssetWriter.Status, Error?) -> Void
+  private var completionHandler: ((RecordingSession, AVAssetWriter.Status, Error?) -> Void)?
 
   private var initialTimestamp: CMTime?
   private var latestTimestamp: CMTime?
@@ -48,11 +48,7 @@ class RecordingSession {
     return (latestTimestamp - initialTimestamp).seconds
   }
 
-  init(url: URL,
-       fileType: AVFileType,
-       completion: @escaping (RecordingSession, AVAssetWriter.Status, Error?) -> Void) throws {
-    completionHandler = completion
-
+  init(url: URL, fileType: AVFileType) throws {
     do {
       assetWriter = try AVAssetWriter(outputURL: url, fileType: fileType)
     } catch let error as NSError {
@@ -65,6 +61,10 @@ class RecordingSession {
       ReactLogger.log(level: .info, message: "Cancelling AssetWriter...")
       assetWriter.cancelWriting()
     }
+  }
+  
+  func setCompletionHandler(completion: @escaping (RecordingSession, AVAssetWriter.Status, Error?) -> Void) {
+    completionHandler = completion
   }
 
   /**
@@ -196,6 +196,11 @@ class RecordingSession {
       ReactLogger.log(level: .warning, message: "Tried calling finish() twice while AssetWriter is still writing!")
       return
     }
+    
+    guard let completionHandler = completionHandler else {
+      ReactLogger.log(level: .warning, message: "Tried to call finish(), but there is no completion handler registered!")
+      return
+    }
 
     if !hasWrittenFirstVideoFrame {
       let error = NSError(domain: "capture/aborted",
@@ -208,7 +213,7 @@ class RecordingSession {
       audioWriter?.markAsFinished()
       assetWriter.finishWriting {
         self.isFinishing = false
-        self.completionHandler(self, self.assetWriter.status, self.assetWriter.error)
+        completionHandler(self, self.assetWriter.status, self.assetWriter.error)
       }
     } else {
       completionHandler(self, assetWriter.status, assetWriter.error)

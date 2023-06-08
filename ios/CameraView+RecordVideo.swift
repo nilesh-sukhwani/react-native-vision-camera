@@ -11,60 +11,130 @@ import AVFoundation
 // MARK: - CameraView + AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate
 
 extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
+  
+  /**
+   Responsible for configuring the recording session asset writer and audio session
+   it is called during `startRecording` or can be called in advance for zero-delay
+   recording.
+   */
+  func configureRecording(options: NSDictionary) throws {
+    // Configure a file to write to
+    var fileType = AVFileType.mov
+    if let fileTypeOption = options["fileType"] as? String {
+      guard let parsed = try? AVFileType(withString: fileTypeOption) else {
+        throw CameraError.parameter(.invalid(unionName: "fileType", receivedValue: fileTypeOption))
+      }
+      fileType = parsed
+    }
+    
+    let errorPointer = ErrorPointer(nilLiteral: ())
+    let fileExtension = fileType.descriptor ?? "mov"
+    guard let tempFilePath = RCTTempFilePath(fileExtension, errorPointer) else {
+      throw CameraError.capture(.createTempFileError)
+    }
+    
+    ReactLogger.log(level: .info, message: "File path: \(tempFilePath)")
+    let tempURL = URL(string: "file://\(tempFilePath)")!
+    
+    guard let videoOutput = self.videoOutput else {
+      if self.video?.boolValue == true {
+        throw CameraError.session(.cameraNotReady)
+      } else {
+        throw CameraError.capture(.videoNotEnabled)
+      }
+    }
+    guard let videoInput = self.videoDeviceInput else {
+      throw CameraError.session(.cameraNotReady)
+    }
+    
+    let recordingSession: RecordingSession
+    do {
+      recordingSession = try RecordingSession(url: tempURL,
+                                              fileType: fileType)
+    } catch {
+      throw CameraError.capture(.createRecorderError(message: nil))
+    }
+    self.recordingSession = recordingSession
+    
+    var videoCodec: AVVideoCodecType?
+    if let codecString = options["videoCodec"] as? String {
+      videoCodec = AVVideoCodecType(withString: codecString)
+    }
+    
+    // Init Video
+    guard let videoSettings = self.recommendedVideoSettings(videoOutput: videoOutput, fileType: fileType, videoCodec: videoCodec),
+          !videoSettings.isEmpty else {
+      throw CameraError.capture(.createRecorderError(message: "Failed to get video settings!"))
+    }
+    
+    // Get pixel format (420f, 420v, x420)
+    let pixelFormat = CMFormatDescriptionGetMediaSubType(videoInput.device.activeFormat.formatDescription)
+    recordingSession.initializeVideoWriter(withSettings: videoSettings,
+                                           pixelFormat: pixelFormat)
+    
+    // Init Audio (optional, async)
+    if let enableAudio = self.audio?.boolValue, enableAudio == true {
+      // Activate Audio Session (blocking)
+      self.activateAudioSession()
+      
+      if let audioOutput = self.audioOutput,
+         let audioSettings = audioOutput.recommendedAudioSettingsForAssetWriter(writingTo: fileType) {
+        recordingSession.initializeAudioWriter(withSettings: audioSettings)
+      }
+    }
+    
+    // start recording session with or without audio.
+    do {
+      try recordingSession.startAssetWriter()
+    } catch {
+      throw CameraError.capture(.createRecorderError(message: "RecordingSession failed to start asset writer."))
+    }
+    
+    self.isPrimedForRecording = true
+  }
+  
+  func prepareRecordingPipeline(options: NSDictionary, promise: Promise) {
+    cameraQueue.async {
+      do {
+        try self.configureRecording(options: options)
+        promise.resolve()
+      } catch let error {
+        guard let error = error as? CameraError else {
+          promise.reject(error: .capture(.unknown(message: "Error could not be properly resolved")))
+          return
+        }
+        promise.reject(error: error)
+      }
+    }
+  }
+  
   /**
    Starts a video + audio recording with a custom Asset Writer.
    */
   func startRecording(options: NSDictionary, callback jsCallbackFunc: @escaping RCTResponseSenderBlock) {
-    print("TIME - startRecording at \(CFAbsoluteTimeGetCurrent())")
     cameraQueue.async {
-      ReactLogger.log(level: .info, message: "Starting Video recording...")
       let callback = Callback(jsCallbackFunc)
-
-      var fileType = AVFileType.mov
-      if let fileTypeOption = options["fileType"] as? String {
-        guard let parsed = try? AVFileType(withString: fileTypeOption) else {
-          callback.reject(error: .parameter(.invalid(unionName: "fileType", receivedValue: fileTypeOption)))
-          return
-        }
-        fileType = parsed
-      }
-
-      let errorPointer = ErrorPointer(nilLiteral: ())
-      let fileExtension = fileType.descriptor ?? "mov"
-      guard let tempFilePath = RCTTempFilePath(fileExtension, errorPointer) else {
-        callback.reject(error: .capture(.createTempFileError), cause: errorPointer?.pointee)
-        return
-      }
-
-      ReactLogger.log(level: .info, message: "File path: \(tempFilePath)")
-      let tempURL = URL(string: "file://\(tempFilePath)")!
-
+      
       if let flashMode = options["flash"] as? String {
         // use the torch as the video's flash
         self.setTorchMode(flashMode)
       }
-
-      guard let videoOutput = self.videoOutput else {
-        if self.video?.boolValue == true {
-          callback.reject(error: .session(.cameraNotReady))
-          return
-        } else {
-          callback.reject(error: .capture(.videoNotEnabled))
+      
+      if !self.isPrimedForRecording {
+        do {
+          try self.configureRecording(options: options)
+        } catch let error {
+          guard let error = error as? CameraError else {
+            callback.reject(error: .capture(.unknown(message: "Error could not be properly resolved")))
+            return
+          }
+          callback.reject(error: error)
           return
         }
       }
-      guard let videoInput = self.videoDeviceInput else {
-        callback.reject(error: .session(.cameraNotReady))
-        return
-      }
-
-      // TODO: The startRecording() func cannot be async because RN doesn't allow
-      //       both a callback and a Promise in a single function. Wait for TurboModules?
-      //       This means that any errors that occur in this function have to be delegated through
-      //       the callback, but I'd prefer for them to throw for the original function instead.
-
+      
       let enableAudio = self.audio?.boolValue == true
-
+      
       let onFinish = { (recordingSession: RecordingSession, status: AVAssetWriter.Status, error: Error?) in
         defer {
           if enableAudio {
@@ -80,6 +150,7 @@ extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAud
 
         self.recordingSession = nil
         self.isRecording = false
+        self.isPrimedForRecording = false
         ReactLogger.log(level: .info, message: "RecordingSession finished with status \(status.descriptor).")
 
         if let error = error as NSError? {
@@ -99,57 +170,10 @@ extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAud
           }
         }
       }
+      
+      self.recordingSession?.setCompletionHandler(completion: onFinish)
 
-      let recordingSession: RecordingSession
-      do {
-        recordingSession = try RecordingSession(url: tempURL,
-                                                fileType: fileType,
-                                                completion: onFinish)
-      } catch let error as NSError {
-        callback.reject(error: .capture(.createRecorderError(message: nil)), cause: error)
-        return
-      }
-      self.recordingSession = recordingSession
-
-      var videoCodec: AVVideoCodecType?
-      if let codecString = options["videoCodec"] as? String {
-        videoCodec = AVVideoCodecType(withString: codecString)
-      }
-
-      // Init Video
-      guard let videoSettings = self.recommendedVideoSettings(videoOutput: videoOutput, fileType: fileType, videoCodec: videoCodec),
-            !videoSettings.isEmpty else {
-        callback.reject(error: .capture(.createRecorderError(message: "Failed to get video settings!")))
-        return
-      }
-
-      // get pixel format (420f, 420v, x420)
-      let pixelFormat = CMFormatDescriptionGetMediaSubType(videoInput.device.activeFormat.formatDescription)
-      recordingSession.initializeVideoWriter(withSettings: videoSettings,
-                                             pixelFormat: pixelFormat)
-
-      // Init Audio (optional, async)
-      if enableAudio {
-        // Activate Audio Session (blocking)
-        self.activateAudioSession()
-
-        if let audioOutput = self.audioOutput,
-           let audioSettings = audioOutput.recommendedAudioSettingsForAssetWriter(writingTo: fileType) {
-          recordingSession.initializeAudioWriter(withSettings: audioSettings)
-        }
-      }
-
-      // start recording session with or without audio.
-      do {
-        print("TIME - startAssetWriter at \(CFAbsoluteTimeGetCurrent())")
-        try recordingSession.startAssetWriter()
-      } catch let error as NSError {
-        callback.reject(error: .capture(.createRecorderError(message: "RecordingSession failed to start asset writer.")), cause: error)
-        return
-      }
       self.isRecording = true
-      self.hasRecordedFirstBuffer = false
-      print("TIME - finished startRecording setup at \(CFAbsoluteTimeGetCurrent())")
     }
   }
 

@@ -9,7 +9,7 @@ import type { Frame } from './Frame';
 import type { PhotoFile, TakePhotoOptions } from './PhotoFile';
 import type { Point } from './Point';
 import type { TakeSnapshotOptions } from './Snapshot';
-import type { CameraVideoCodec, RecordVideoOptions, VideoFile } from './VideoFile';
+import type { CameraVideoCodec, RecordVideoOptions, RecordingSessionOptions, VideoFile } from './VideoFile';
 
 //#region Types
 export type CameraPermissionStatus = 'authorized' | 'not-determined' | 'denied' | 'restricted';
@@ -147,6 +147,36 @@ export class Camera extends React.PureComponent<CameraProps> {
 
     try {
       return await CameraModule.takeSnapshot(this.handle, options ?? {});
+    } catch (e) {
+      throw tryParseNativeCameraError(e);
+    }
+  }
+
+  public async prepareRecordingPipeline(options: RecordingSessionOptions = {}): Promise<void> {
+    if (Platform.OS !== 'ios') {
+      throw new CameraCaptureError(
+        'capture/capture-type-not-supported',
+        `'prepareRecordingPipeline()' is not available on ${Platform.OS}!`,
+      );
+    }
+
+    try {
+      return await CameraModule.prepareRecordingPipeline(this.handle, options);
+    } catch (e) {
+      throw tryParseNativeCameraError(e);
+    }
+  }
+
+  public async unprepareRecordingPipeline(): Promise<void> {
+    if (Platform.OS !== 'ios') {
+      throw new CameraCaptureError(
+        'capture/capture-type-not-supported',
+        `'unprepareRecordingPipeline()' is not available on ${Platform.OS}!`,
+      );
+    }
+
+    try {
+      return await CameraModule.unprepareRecordingPipeline(this.handle);
     } catch (e) {
       throw tryParseNativeCameraError(e);
     }

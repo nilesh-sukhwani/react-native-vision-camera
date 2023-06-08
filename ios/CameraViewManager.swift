@@ -42,6 +42,12 @@ final class CameraViewManager: RCTViewManager {
   }
 
   // pragma MARK: React Functions
+  
+  @objc
+  final func prepareRecordingPipeline(_ node: NSNumber, options: NSDictionary, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    let component = getCameraView(withTag: node)
+    component.prepareRecordingPipeline(options: options, promise: Promise(resolver: resolve, rejecter: reject))
+  }
 
   @objc
   final func startRecording(_ node: NSNumber, options: NSDictionary, onRecordCallback: @escaping RCTResponseSenderBlock) {
