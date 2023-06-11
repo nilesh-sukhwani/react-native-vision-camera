@@ -140,7 +140,6 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   const onMediaCaptured = useCallback(
     (media: PhotoFile | VideoFile, type: 'photo' | 'video') => {
       console.log(`Media captured! ${JSON.stringify(media)}`);
-      camera.current?.prepareRecordingPipeline();
       navigation.navigate('MediaPage', {
         path: media.path,
         type: type,
@@ -199,15 +198,16 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     console.log('re-rendering camera page without active camera');
   }
 
-  const frameProcessor = useFrameProcessor((frame) => {
-    'worklet';
-    const values = examplePlugin(frame);
-    console.log(`Return Values: ${JSON.stringify(values)}`);
-  }, []);
-
   const onFrameProcessorSuggestionAvailable = useCallback((suggestion: FrameProcessorPerformanceSuggestion) => {
     console.log(`Suggestion available! ${suggestion.type}: Can do ${suggestion.suggestedFrameProcessorFps} FPS`);
   }, []);
+
+  useEffect(() => {
+    if (isCameraInitialized && isFocussed) {
+      console.log('Camera is initialized and focussed, preparing recording pipeline');
+      camera.current?.prepareRecordingPipeline();
+    }
+  }, [isCameraInitialized, isFocussed]);
 
   return (
     <View style={styles.container}>
