@@ -167,21 +167,6 @@ export class Camera extends React.PureComponent<CameraProps> {
     }
   }
 
-  public async unprepareRecordingPipeline(): Promise<void> {
-    if (Platform.OS !== 'ios') {
-      throw new CameraCaptureError(
-        'capture/capture-type-not-supported',
-        `'unprepareRecordingPipeline()' is not available on ${Platform.OS}!`,
-      );
-    }
-
-    try {
-      return await CameraModule.unprepareRecordingPipeline(this.handle);
-    } catch (e) {
-      throw tryParseNativeCameraError(e);
-    }
-  }
-
   /**
    * Start a new video recording.
    *
