@@ -1,25 +1,16 @@
 import type { Frame, FrameInternal } from './Frame';
-import { Camera } from './Camera';
 import { Worklets } from 'react-native-worklets/src';
+import { VisionCameraProxy } from './VisionCameraProxy';
 
-// Install VisionCamera Frame Processor JSI Bindings and Plugins
-Camera.installFrameProcessorBindings();
+/**
+ * All natively installed Frame Processor Plugins.
+ */
+export const FrameProcessorPlugins = VisionCameraProxy.FrameProcessorPlugins;
 
 declare global {
   // eslint-disable-next-line no-var
   var __frameProcessorRunAtTargetFpsMap: Record<string, number | undefined> | undefined;
 }
-
-type BasicParameterType = string | number | boolean | undefined;
-type ParameterType = BasicParameterType | BasicParameterType[] | Record<string, BasicParameterType | undefined>;
-type FrameProcessor = (frame: Frame, parameters?: Record<string, ParameterType | undefined>) => unknown;
-type TFrameProcessorPlugins = Record<string, FrameProcessor>;
-
-/**
- * All natively installed Frame Processor Plugins.
- */
-// @ts-expect-error The global JSI Proxy object is not typed.
-export const FrameProcessorPlugins = global.FrameProcessorPlugins as TFrameProcessorPlugins;
 
 function getLastFrameProcessorCall(frameProcessorFuncId: string): number {
   'worklet';

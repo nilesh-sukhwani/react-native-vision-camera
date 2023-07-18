@@ -6,12 +6,12 @@ import type { ErrorWithCause } from './CameraError';
 import { CameraCaptureError, CameraRuntimeError, tryParseNativeCameraError, isErrorWithCause } from './CameraError';
 import type { CameraProps } from './CameraProps';
 import type { Frame } from './Frame';
-import { assertFrameProcessorsAvailable, assertJSIAvailable } from './JSIHelper';
 import { CameraModule } from './NativeCameraModule';
 import type { PhotoFile, TakePhotoOptions } from './PhotoFile';
 import type { Point } from './Point';
 import type { TakeSnapshotOptions } from './Snapshot';
 import type { CameraVideoCodec, RecordVideoOptions, VideoFile } from './VideoFile';
+import { VisionCameraProxy } from './VisionCameraProxy';
 
 //#region Types
 export type CameraPermissionStatus = 'authorized' | 'not-determined' | 'denied' | 'restricted';
@@ -306,14 +306,6 @@ export class Camera extends React.PureComponent<CameraProps> {
   }
 
   //#region Static Functions (NativeModule)
-  /**
-   * Install JSI Bindings for Frame Processors
-   */
-  public static installFrameProcessorBindings(): void {
-    assertJSIAvailable();
-    const result = CameraModule.installFrameProcessorBindings() as unknown;
-    if (result !== true) throw new Error('Failed to install Frame Processor JSI bindings!');
-  }
 
   /**
    * Get a list of all available camera devices on the current phone.
@@ -418,15 +410,11 @@ export class Camera extends React.PureComponent<CameraProps> {
 
   //#region Lifecycle
   private setFrameProcessor(frameProcessor: (frame: Frame) => void): void {
-    assertFrameProcessorsAvailable();
-    // @ts-expect-error JSI functions aren't typed
-    global.setFrameProcessor(this.handle, frameProcessor);
+    VisionCameraProxy.setFrameProcessor(this.handle, frameProcessor);
   }
 
   private unsetFrameProcessor(): void {
-    assertFrameProcessorsAvailable();
-    // @ts-expect-error JSI functions aren't typed
-    global.unsetFrameProcessor(this.handle);
+    VisionCameraProxy.unsetFrameProcessor(this.handle);
   }
 
   private onViewReady(): void {

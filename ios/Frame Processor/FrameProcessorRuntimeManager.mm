@@ -130,11 +130,13 @@ __attribute__((objc_runtime_name("_TtC12VisionCamera10CameraView")))
 
   jsi::Runtime& jsiRuntime = *(jsi::Runtime*)cxxBridge.runtime;
   
+  jsi::Object visionCameraObject(jsiRuntime);
+  
   // HostObject that attaches the cache to the lifecycle of the Runtime. On Runtime destroy, we destroy the cache.
   auto propNameCacheObject = std::make_shared<vision::InvalidateCacheOnDestroy>(jsiRuntime);
-  jsiRuntime.global().setProperty(jsiRuntime,
-                                  jsi::Object::createFromHostObject(jsiRuntime, propNameCacheObject));
+  visionCameraObject.setProperty(jsiRuntime,
                                  "__arrayBufferCache",
+                                 jsi::Object::createFromHostObject(jsiRuntime, propNameCacheObject));
 
   // Install the Worklet Runtime in the main React JS Runtime
   [self setupWorkletContext:jsiRuntime];
@@ -158,10 +160,10 @@ __attribute__((objc_runtime_name("_TtC12VisionCamera10CameraView")))
 
     return jsi::Value::undefined();
   };
-  jsiRuntime.global().setProperty(jsiRuntime, "setFrameProcessor", jsi::Function::createFromHostFunction(jsiRuntime,
-                                                                                                         jsi::PropNameID::forAscii(jsiRuntime, "setFrameProcessor"),
-                                                                                                         2,  // viewTag, frameProcessor
-                                                                                                         setFrameProcessor));
+  visionCameraObject.setProperty(jsiRuntime, "setFrameProcessor", jsi::Function::createFromHostFunction(jsiRuntime,
+                                                                                                        jsi::PropNameID::forAscii(jsiRuntime, "setFrameProcessor"),
+                                                                                                        2,  // viewTag, frameProcessor
+                                                                                                        setFrameProcessor));
 
   // unsetFrameProcessor(viewTag: number)
   auto unsetFrameProcessor = JSI_HOST_FUNCTION_LAMBDA {
@@ -179,10 +181,12 @@ __attribute__((objc_runtime_name("_TtC12VisionCamera10CameraView")))
 
     return jsi::Value::undefined();
   };
-  jsiRuntime.global().setProperty(jsiRuntime, "unsetFrameProcessor", jsi::Function::createFromHostFunction(jsiRuntime,
-                                                                                                           jsi::PropNameID::forAscii(jsiRuntime, "unsetFrameProcessor"),
-                                                                                                           1,  // viewTag
-                                                                                                           unsetFrameProcessor));
+  visionCameraObject.setProperty(jsiRuntime, "unsetFrameProcessor", jsi::Function::createFromHostFunction(jsiRuntime,
+                                                                                                          jsi::PropNameID::forAscii(jsiRuntime, "unsetFrameProcessor"),
+                                                                                                          1,  // viewTag
+                                                                                                          unsetFrameProcessor));
+  
+  jsiRuntime.global().setProperty(jsiRuntime, "VisionCameraProxy", visionCameraObject);
 
   NSLog(@"FrameProcessorBindings: Finished installing bindings.");
 }
